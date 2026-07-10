@@ -31,7 +31,7 @@
 | Version | 구조 | WNS | Fmax | LUT | FF | DSP | Power |
 |---|---|---|---|---|---|---|---|
 | **V1** | Array INT8 (baseline) | +0.409 ns | ~104.3 MHz | 784 | 426 | 0 | 0.086 W |
-| **V2** | Wallac Tree INT8 | +0.154 ns | ~101.6 MHz | 780 | 426 | 0 | 0.086 W |
+| **V2** | Wallace Tree INT8 | +0.154 ns | ~101.6 MHz | 780 | 426 | 0 | 0.086 W |
 | **V3** | *(TBD)* | – | – | – | – | – | – |
 
 > 측정 조건: Vivado 합성/구현 후 post-implementation 리포트 기준. 전력은 `power_bench_wrapper` + LFSR 동적 입력 환경에서 측정.
@@ -86,6 +86,3 @@ vvp sim.out
 - 각 버전(V1, V2, ...) 완료 시점에 git tag를 생성합니다 (`v1.0`, `v2.0`, ...)
 - 버전별 측정 리포트 원본은 `results/v1/`, `results/v2/` 형태로 보관합니다
 
-## 📄 License
-
-*(TBD — 지도교수님과 협의 후 결정)*
