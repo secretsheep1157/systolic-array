@@ -1,7 +1,7 @@
 # Systolic Array 기반 행렬곱 가속기 설계 및 비교 분석
 
 > 2026 하계 URP (Undergraduate Research Program)
-> Nexys A7-100T FPGA를 타깃으로 한 시스톨릭 어레이 기반 행렬곱 가속기의 설계, 구현 및 버전별 성능 비교 분석
+> Nexys A7-100T FPGA를 타깃으로 한 시스톨릭 어레이 기반 행렬곱 가속기의 설계, 구현 및 버전별 성능 비교 분석ㅋㅋ
 
 ## 👥 Team
 
