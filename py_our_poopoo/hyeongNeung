@@ -1,99 +1,60 @@
 import numpy as np
 
-def parse_hex_line(line):
-    clean_line = line.replace('A:', '').replace('B:', '').strip()
-    tokens = clean_line.split()
-    
+def parse_mem_line(line):
+    """메모리 파일의 한 줄(16진수 문자열)을 int8(부호 있는 8비트 정수) 넘파이 배열로 변환합니다."""
+    tokens = line.strip().split()
     ints = []
     for token in tokens:
-        if '[' in token or ']' in token or 'source' in token:
-            continue
         if len(token) == 2:
             ints.append(int(token, 16))
             
-    # 입력 벡터를 INT8로 생성
+    # uint8로 안전하게 배열을 잡은 뒤 view를 통해 int8 음수 표현 복원
     uint8_arr = np.array(ints, dtype=np.uint8)
     return uint8_arr.view(np.int8)
 
-def save_to_mem_file(val, file_name):
-    """
-    16비트 정수(INT16) 값을 Verilog 등에서 인식할 수 있는 
-    4자리 16진수(Hex) 포맷으로 변환하여 .mem 파일로 저장합니다.
-    """
-    # 2의 보수 표현 유지를 위해 부호 없는 16비트(uint16)로 비트 패턴을 변환합니다.
-    uint16_val = np.uint16(val)
-    
-    # 4자리 16진수 포맷팅 (예: -1 -> FFFF, 58 -> 003A)
-    hex_str = f"{uint16_val:04X}"
-    
-    with open(file_name, 'w', encoding='utf-8') as f:
-        f.write(hex_str + "\n")
-    print(f"  [MEM 생성 완료] {file_name} -> {hex_str}")
-
-def process_testbench_safe(file_path):
-    with open(file_path, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
+def process_mem_files(file_a, file_b, output_file):
+    # 두 .mem 파일을 줄 단위로 읽어오기
+    with open(file_a, 'r', encoding='utf-8') as fa, open(file_b, 'r', encoding='utf-8') as fb:
+        lines_a = fa.readlines()
+        lines_b = fb.readlines()
         
-    print("====== 테스트벤치 행렬곱 계산 및 .mem 생성 ======\n")
-    current_category = "기본"
+    results_hex = []
     
-    case_counter = 1
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
+    print(f"====== MEM 파일 기반 행렬곱 연산 시작 ======")
+    print(f"  -> A 소스: {file_a}")
+    print(f"  -> B 소스: {file_b}\n")
+    
+    # 두 파일 중 라인 수가 적은 쪽에 맞춰 루프 순회 (보통 라인 수가 같습니다)
+    total_cases = min(len(lines_a), len(lines_b))
+    
+    for idx in range(total_cases):
+        a_arr = parse_mem_line(lines_a[idx])
+        b_arr = parse_mem_line(lines_b[idx])
         
-        if not line:
-            i += 1
-            continue
+        if len(a_arr) > 0 and len(b_arr) > 0:
+            min_len = min(len(a_arr), len(b_arr))
             
-        if 'sparse :' in line:
-            current_category = "Sparse"
-        elif '경계값 :' in line:
-            current_category = "Boundary"
-        elif '랜덤 :' in line:
-            current_category = "Random"
+            # 하드웨어 스펙에 맞게 데이터는 INT8, 연산 공간 및 누적기는 INT16으로 캐스팅
+            a_vec = a_arr[:min_len].astype(np.int16)
+            b_vec = b_arr[:min_len].astype(np.int16)
             
-        if line.startswith('-- Sub-case'):
-            title = line.strip('- ')
-            print(f"[{current_category}] {title}")
+            # INT16 환경에서의 행렬곱(내적) 연산
+            result_int16 = np.dot(a_vec, b_vec).astype(np.int16)
             
-            a_str = ""
-            b_str = ""
+            # 16비트 결과값을 4자리 16진수(Hex) 문자열로 변환 (예: 58 -> 003A, -44 -> FFD4)
+            uint16_val = np.uint16(result_int16)
+            hex_str = f"{uint16_val:04X}"
+            results_hex.append(hex_str)
             
-            for offset in range(1, 10):
-                if i + offset >= len(lines):
-                    break
-                next_line = lines[i + offset].strip()
-                if next_line.startswith('-- Sub-case'):
-                    break
-                    
-                if 'A:' in next_line or (a_str and not 'B:' in next_line):
-                    if not 'B:' in next_line:
-                        a_str += " " + next_line
-                if 'B:' in next_line or b_str:
-                    b_str += " " + next_line
-            
-            a_arr = parse_hex_line(a_str)
-            b_arr = parse_hex_line(b_str)
-            
-            if len(a_arr) > 0 and len(b_arr) > 0:
-                min_len = min(len(a_arr), len(b_arr))
-                
-                # INT16 누적 연산 진행
-                a_vec = a_arr[:min_len].astype(np.int16)
-                b_vec = b_arr[:min_len].astype(np.int16)
-                
-                result = np.dot(a_vec, b_vec).astype(np.int16)
-                print(f"  -> 결과(INT16): {result} (10진수)")
-                
-                # 각 케이스별로 결과 파일 생성 (예: result_case_1.mem, result_case_2.mem ...)
-                mem_filename = f"result_case_{case_counter}.mem"
-                save_to_mem_file(result, mem_filename)
-                print("-" * 50)
-                
-                case_counter += 1
-                
-        i += 1
+            print(f"  [Case {idx+1:02d}] 10진수: {result_int16:6d}  ->  16진수: {hex_str}")
 
-# 실행하기
-process_testbench_safe('testbench.txt')
+    # 모든 결과를 하나의 .mem 파일에 한 줄씩 쓰기
+    with open(output_file, 'w', encoding='utf-8') as fo:
+        for hex_val in results_hex:
+            fo.write(hex_val + "\n")
+            
+    print(f"\n====== 연산 완료 ======")
+    print(f"  -> 최종 결과 파일 생성 완료: {output_file}")
+
+# 파일명 체크 후 실행 (all_A.mem, all_B.mem 파일이 같은 폴더에 있어야 합니다)
+process_mem_files('all_A.mem', 'all_B.mem', 'result_all.mem')
